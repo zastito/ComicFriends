@@ -18,12 +18,10 @@ public class ComicPrice {
     @Column(name = "COMIC_SELLER_ID")
 	private Long id;
 	
-    //@ManyToOne(cascade = CascadeType.ALL)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "USER_ID")
     private User user;
     
-    //@ManyToOne(cascade = CascadeType.ALL)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "COMIC_ID")   
     private Comic comic;

@@ -51,7 +51,7 @@ public class Comic {
 	@JoinColumn(name = "OWNER_ID")
 	private List<User> owners = new ArrayList<>();
 
-    @OneToMany(mappedBy = "comic")
+	@OneToMany(mappedBy = "comic")
 	private List<ComicPrice> sellers = new ArrayList<>();
 	
     @JoinTable(
@@ -131,12 +131,32 @@ public class Comic {
 		return owners;
 	}
 
+	public void setOwners(List<User> owners) {
+		this.owners = owners;
+	}
+
 	public List<ComicPrice> getSellers() {
 		return sellers;
 	}
 
 	public List<User> getUsers() {
 		return users;
+	}
+	
+    public List<Review> getReceived_reviews() {
+		return received_reviews;
+	}
+
+	public void setReceived_reviews(List<Review> received_reviews) {
+		this.received_reviews = received_reviews;
+	}
+
+	public void setSellers(List<ComicPrice> sellers) {
+		this.sellers = sellers;
+	}
+
+	public void setUsers(List<User> users) {
+		this.users = users;
 	}
 
 	@Override

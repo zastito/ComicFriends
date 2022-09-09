@@ -41,10 +41,22 @@ public class ComicFriendsService {
 		this.comicPriceRepository = comicPriceRepository;
 	}
 	
+	public List<User> findALLUsers() {
+		return (List<User>) userRepository.findAll();
+	}
+	
 	public List<Comic> findALLComics() {
 		return (List<Comic>) comicRepository.findAll();
 	}
 	
+	public List<ComicPrice> findALLComicPrices() {
+		return (List<ComicPrice>) comicPriceRepository.findAll();
+	}
+	
+	public List<Review> findALLReviews() {
+		return (List<Review>) reviewRepository.findAll();
+	}
+
 	public List<ComicPrice> findAllComicPrice(Comic comic, User user) {
 		return comicPriceRepository.findAllByComicAndUser(comic, user);
 	}
@@ -223,7 +235,16 @@ public class ComicFriendsService {
 
 	public Long insert(Review review) {
 		review.setReviewId(null);
-		return reviewRepository.save(review).getReviewId();
+		reviewRepository.save(review);
+		return review.getReviewId();
+	}
+	
+	public Long insert2(Comic comic) {
+		return comicRepository.save(comic).getComicId();
+	}
+	
+	public Optional<Comic> findComicByTitle(String title) {
+		return comicRepository.findComicByTitle(title);
 	}
 	
 }

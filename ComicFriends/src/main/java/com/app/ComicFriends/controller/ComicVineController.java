@@ -22,12 +22,15 @@ import org.springframework.social.facebook.connect.FacebookConnectionFactory;
 import org.springframework.social.oauth2.AccessGrant;
 import org.springframework.social.oauth2.OAuth2Operations;
 import org.springframework.social.oauth2.OAuth2Parameters;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
@@ -38,6 +41,7 @@ import com.app.ComicFriends.entities.ReviewType;
 import com.app.ComicFriends.entities.Transaction;
 import com.app.ComicFriends.entities.User;
 import com.app.ComicFriends.exception.ComicNotFoundException;
+import com.app.ComicFriends.exception.ComicPriceNotFoundException;
 import com.app.ComicFriends.exception.ReviewImputDataException;
 import com.app.ComicFriends.exception.ReviewNotFoundException;
 import com.app.ComicFriends.exception.UserImputDataException;
@@ -45,6 +49,8 @@ import com.app.ComicFriends.exception.UserNotFoundException;
 import com.app.ComicFriends.service.ComicFriendsService;
 
 @RestController
+@CrossOrigin(origins = "https://192.168.0.16:4200")
+//@CrossOrigin(origins = "https://angular-kuaz1g.stackblitz.io")
 @RequestMapping("/ComicFriends")
 public class ComicVineController {
 	
@@ -81,7 +87,7 @@ public class ComicVineController {
 		return comicservice.insert(user);
 	}
 	
-	@GetMapping("/user/{id}")
+	@GetMapping("/users/{id}") //backend version
 	public User getUserById(@PathVariable(value = "id") Long userId) throws UserNotFoundException {
 		Optional<User> user = comicservice.findUserById(userId);
 		
@@ -93,10 +99,63 @@ public class ComicVineController {
 		}
 		
 		return user.get();
+		
+	}
+	
+	@GetMapping("/user/{id}") //frontend version
+	public User getUserById2(@PathVariable(value = "id") Long userId) throws UserNotFoundException {
+		Optional<User> user = comicservice.findUserById(userId);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+		
+		User u = user.get();
+		
+		u.setOwned_comics(null);
+		u.setDesired_comics(null);
+		u.setForSale_comics(null);
+		u.setReceived_reviews(null);
+		u.setWrited_reviews(null);
+		u.setBuyer_transactions(null);
+		u.setSeller_transactions(null);
+		
+		return u;
+	}
+	
+	@GetMapping("/user/{username}/{password}")
+	public User getUserByNameAndPassword(@PathVariable(value = "username") String username, @PathVariable(value = "password") String password) throws UserNotFoundException {
+		Optional<User> user = comicservice.findUserByName(username);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+		
+		if(!user.get().getPassword().equals(password)) {
+			throw new UserNotFoundException("Contraseña incorrecta");
+		}
+			
+		User u = user.get();
+		
+		u.setOwned_comics(null);
+		u.setDesired_comics(null);
+		u.setForSale_comics(null);
+		u.setReceived_reviews(null);
+		u.setWrited_reviews(null);
+		u.setBuyer_transactions(null);
+		u.setSeller_transactions(null);
+		
+		return u;
 	}
 	
 	@PostMapping("/user/modify")
-	public Long modifyUser(@Valid @RequestBody User user) throws UserImputDataException {
+	public User modifyUser(@Valid @RequestBody User user) throws UserImputDataException {
 		Optional<User> user1 = comicservice.findUserById(user.getUserId());
 		Optional<User> user2 = comicservice.findUserByEmail(user.getEmail());
 		Optional<User> user3 = comicservice.findUserByName((user.getUsername()));
@@ -117,7 +176,8 @@ public class ComicVineController {
 			}
 		}
 		
-		return comicservice.update(user);
+		comicservice.update(user);		
+		return user; 
 	}
 	
 	@PostMapping("/user/delete")
@@ -156,7 +216,7 @@ public class ComicVineController {
 		
 		if (review.getType().equals(ReviewType.COMIC)) {
 			Long comic_id = review.getReceiverComic().getComicId();
-			Comic comic = getComicById(comic_id);
+			Comic comic = getComicById2(comic_id);
 			review.setReceiverComic(comic);
 			
 			List<Review> comicReviews = comicservice.findALLReviewsByCreatorAndComic(creator, comic);
@@ -171,7 +231,7 @@ public class ComicVineController {
 			b = userReviews.isEmpty();
 		}
 		if(b) {
-			return comicservice.insert(review);			
+			return comicservice.insert(review);
 		} else {
 			return (long) 0;
 		}
@@ -188,7 +248,50 @@ public class ComicVineController {
 			throw new ReviewNotFoundException("Valoración no encontrada");
 		}
 		
-		return review.get();
+		Review r = review.get();
+		r.setCreator(null);
+		
+		if (r.getType().toString() == "COMIC") {
+			String title = r.getReceiverComic().getTitle();
+			
+			Comic c = new Comic();
+			if (title != null) {
+				c.setTitle(title);
+			}
+			r.setReceiverComic(c);
+		
+			User u = r.getReceiverUser();
+			if (u != null) {
+				u.setOwned_comics(null);
+				u.setDesired_comics(null);
+				u.setForSale_comics(null);
+				u.setReceived_reviews(null);
+				u.setWrited_reviews(null);		
+			}
+			r.setReceiverUser(u);	
+		}
+		
+		if (r.getType().toString() == "USER") {
+			String username = r.getReceiverUser().getUsername();
+			
+			User u = new User();
+			if (username != null) {
+				u.setUsername(username);
+			}
+			r.setReceiverUser(u);
+		
+			Comic c = r.getReceiverComic();
+			if (c != null) {
+				c.setCreators(null);
+				c.setOwners(null);
+				c.setReceived_reviews(null);
+				c.setSellers(null);
+				c.setUsers(null);
+			}
+			r.setReceiverComic(c);	
+		}
+		
+		return r;
 	}
 	
 	@PostMapping("/review/delete")
@@ -196,10 +299,10 @@ public class ComicVineController {
 		comicservice.delete(review);
 	}
 	
-	@GetMapping("/comic/search")
-	public String search(String scope, String filter, String criteria) {
+	@GetMapping("/comic/search/{scope}/{filter}/{criteria}")
+	public Object search(@PathVariable(value = "scope") String scope, @PathVariable(value = "filter") String filter, @PathVariable(value = "criteria") String criteria) {
 		
-		String url = "https://comicvine.gamespot.com/api/" + scope + "/?api_key=" + api_key + "&format=json&sort=name:asc&filter=" + filter + ":" + criteria;
+		String url = "https://comicvine.gamespot.com/api/" + scope + "/?api_key=" + api_key + "&format=json&sort=name:asc&filter=" + filter + ":" + criteria + "&limit=50" + "&field_list=count_of_issues,name,publisher,site_detail_url,start_year,image";
 
 		try {
             HttpHeaders headers = new HttpHeaders();
@@ -209,7 +312,7 @@ public class ComicVineController {
 
             ResponseEntity<Object> response = restTemplate.exchange(url, HttpMethod.GET, entity, Object.class);
             
-            return response.toString();
+            return response.getBody();
             
         } catch (Exception ex) {
         	ex.printStackTrace();
@@ -260,7 +363,11 @@ public class ComicVineController {
 		}	
 	}
 	
-	@GetMapping("/comic/{id}")
+	public Long updateComic2(Comic comic) throws UserNotFoundException {	
+			return comicservice.update(comic);
+	}
+	
+	@GetMapping("/comic/{id}") //frontend version
 	public Comic getComicById(@PathVariable(value = "id") Long comicId) throws ComicNotFoundException {
 		Optional<Comic> comic = comicservice.findComicById(comicId);
 		
@@ -271,7 +378,377 @@ public class ComicVineController {
 			throw new ComicNotFoundException("Comic no disponible");
 		}
 		
-		return comic.get();
+		Comic c = comic.get();
+		c.setOwners(null);
+		c.setUsers(null);
+		c.setSellers(null);
+		c.setReceived_reviews(null);
+		return c;
+	}
+	
+	public Comic getComicById2(Long comicId) throws ComicNotFoundException {  //backend version
+		Optional<Comic> comic = comicservice.findComicById(comicId);
+		
+		try {
+			comic.get().getComicId();
+		}
+		catch(Exception e) {
+			throw new ComicNotFoundException("Comic no disponible");
+		}
+		
+		Comic c = comic.get();
+		return c;
+	}
+	
+	@RequestMapping(value = "/users", method = RequestMethod.GET)
+	@ResponseBody
+	public List<User> getUsers() {
+		List<User> users = comicservice.findALLUsers();
+		List<User> users2 = new ArrayList<User>();
+		
+		for (User u : users) {
+			u.setOwned_comics(null);
+			u.setDesired_comics(null);
+			u.setForSale_comics(null);
+			u.setReceived_reviews(null);
+			u.setWrited_reviews(null);
+			u.setBuyer_transactions(null);
+			u.setSeller_transactions(null);
+			users2.add(u);
+		}
+		
+		return users2;
+	}
+	
+	@RequestMapping(value = "/comics", method = RequestMethod.GET)
+	@ResponseBody
+	public List<Comic> getComics() {
+		List<Comic> comics = comicservice.findALLComics();
+		List<Comic> comics2 = new ArrayList<Comic>();
+		
+		for (Comic c : comics) {
+			c.setOwners(null);
+			c.setUsers(null);
+			c.setSellers(null);
+			c.setReceived_reviews(null);
+			comics2.add(c);
+		}
+		
+		return comics2;
+	}
+	
+	@RequestMapping(value = "/reviews", method = RequestMethod.GET)
+	@ResponseBody
+	public List<Review> getReviews() {
+		List<Review> reviews = comicservice.findALLReviews();
+		List<Review> reviews2 = new ArrayList<Review>();
+		
+		for (Review r : reviews) {
+			User u2 = new User();
+			
+			u2.setOwned_comics(null);
+			u2.setDesired_comics(null);
+			u2.setForSale_comics(null);
+			u2.setReceived_reviews(null);
+			u2.setWrited_reviews(null);
+			u2.setBuyer_transactions(null);
+			u2.setSeller_transactions(null);
+				
+			u2.setUsername(r.getCreator().getUsername());
+			u2.setUserId(r.getCreator().getUserId());
+			
+			r.setCreator(u2);
+			
+			if (r.getType().toString() == "COMIC") {
+				String title = r.getReceiverComic().getTitle();
+				
+				Comic c = new Comic();
+				if (title != null) {
+					c.setTitle(title);
+				}
+				r.setReceiverComic(c);
+			
+				User u = r.getReceiverUser();
+				if (u != null) {
+					u.setOwned_comics(null);
+					u.setDesired_comics(null);
+					u.setForSale_comics(null);
+					u.setReceived_reviews(null);
+					u.setWrited_reviews(null);
+					u.setBuyer_transactions(null);
+					u.setSeller_transactions(null);
+				}
+				r.setReceiverUser(u);	
+			}
+			
+			if (r.getType().toString() == "USER") {
+				String username = r.getReceiverUser().getUsername();
+				
+				User u = new User();
+				if (username != null) {
+					u.setUsername(username);
+				}
+				r.setReceiverUser(u);
+			
+				Comic c = r.getReceiverComic();
+				if (c != null) {
+					c.setCreators(null);
+					c.setOwners(null);
+					c.setReceived_reviews(null);
+					c.setSellers(null);
+					c.setUsers(null);
+				}
+				r.setReceiverComic(c);	
+			}
+			
+			reviews2.add(r);
+		}
+		
+		return reviews2;
+	}
+	
+	@GetMapping("/comic/name/{title}")
+	public Comic getComicByTitle(@PathVariable(value = "title") String title) throws ComicNotFoundException {
+		Optional<Comic> comic = comicservice.findComicByTitle(title);
+		
+		try {
+			comic.get().getComicId();
+		}
+		catch(Exception e) {
+			throw new ComicNotFoundException("Comic no encontrado");
+		}
+		
+		Comic c = comic.get();
+		c.setOwners(null);
+		c.setUsers(null);
+		c.setSellers(null);
+		c.setReceived_reviews(null);
+		return c;
+	}
+	
+	@GetMapping("/comic/owned/{username}")
+	public List<Comic> getComicsByUser(@PathVariable(value = "username") String username) throws UserNotFoundException {
+		Optional<User> user = comicservice.findUserByName(username);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+			
+		User u = user.get();
+		
+		List<Comic> comics = u.getOwned_comics();
+		List<Comic> comics2 = new ArrayList<Comic>();
+		
+		for (Comic c : comics) {
+			c.setOwners(null);
+			c.setUsers(null);
+			c.setSellers(null);
+			c.setReceived_reviews(null);
+			comics2.add(c);
+		}
+		
+		return comics2;
+
+	}
+	
+	@GetMapping("/comic/desired/{username}")
+	public List<Comic> getDesiredByUser(@PathVariable(value = "username") String username) throws UserNotFoundException {
+		Optional<User> user = comicservice.findUserByName(username);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+			
+		User u = user.get();
+		
+		List<Comic> comics = u.getDesired_comics();
+		List<Comic> comics2 = new ArrayList<Comic>();
+		
+		for (Comic c : comics) {
+			c.setOwners(null);
+			c.setUsers(null);
+			c.setSellers(null);
+			c.setReceived_reviews(null);
+			comics2.add(c);
+		}
+		
+		return comics2;
+
+	}
+	
+	@RequestMapping(value = "/comicPrices", method = RequestMethod.GET)
+	@ResponseBody
+	public List<ComicPrice> getComicPrices() {
+		List<ComicPrice> comicPrice = comicservice.findALLComicPrices();
+		List<ComicPrice> comicsPrice2 = new ArrayList<ComicPrice>();
+		
+		for (ComicPrice cp : comicPrice) {
+			User u1 = cp.getUser();
+			Comic c1 = cp.getComic();
+			User u2 = new User();
+			Comic c2 = new Comic();
+			
+			c2.setTitle(c1.getTitle());
+			c2.setPublisher(c1.getPublisher());
+			c2.setVolume(c1.getVolume());
+			c2.setIssue(c1.getIssue());	
+			c2.setComicId(c1.getComicId());
+			
+			u2.setUsername(u1.getUsername());
+			u2.setUserId(u1.getUserId());
+			
+			cp.setUser(u2);
+			cp.setComic(c2);
+			
+			comicsPrice2.add(cp);
+		}
+		
+		return comicsPrice2;
+
+	}
+	
+	@GetMapping("/ComicPrice/find/{comicId}/{userId}")
+	public List <ComicPrice> findComicPrice(@PathVariable(value = "comicId") Long comicId, @PathVariable(value = "userId") Long userId) throws ComicPriceNotFoundException, ComicNotFoundException, UserNotFoundException {
+		
+		Optional<User> user = comicservice.findUserById(userId);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+		
+		User u = user.get();
+		
+		u.setOwned_comics(null);
+		u.setDesired_comics(null);
+		u.setForSale_comics(null);
+		u.setReceived_reviews(null);
+		u.setWrited_reviews(null);
+		u.setBuyer_transactions(null);
+		u.setSeller_transactions(null);
+		
+		Optional<Comic> comic = comicservice.findComicById(comicId);
+		
+		try {
+			comic.get().getComicId();
+		}
+		catch(Exception e) {
+			throw new ComicNotFoundException("Comic no disponible");
+		}
+		
+		Comic c = comic.get();
+		c.setOwners(null);
+		c.setUsers(null);
+		c.setSellers(null);
+		c.setReceived_reviews(null);
+		
+		List <ComicPrice> comicPrice = comicservice.findAllComicPrice(c, u);
+		List<ComicPrice> comicsPrice2 = new ArrayList<ComicPrice>();
+		
+		for (ComicPrice cp : comicPrice) {
+			User u1 = cp.getUser();
+			Comic c1 = cp.getComic();
+			User u2 = new User();
+			Comic c2 = new Comic();
+			
+			c2.setTitle(c1.getTitle());
+			c2.setPublisher(c1.getPublisher());
+			c2.setVolume(c1.getVolume());
+			c2.setIssue(c1.getIssue());	
+			c2.setComicId(c1.getComicId());
+			
+			u2.setUsername(u1.getUsername());
+			u2.setUserId(u1.getUserId());
+			
+			cp.setUser(u2);
+			cp.setComic(c2);
+			
+			comicsPrice2.add(cp);
+		}
+		
+		return comicsPrice2;
+	}
+	
+	@GetMapping("/ComicPrice/{id}")
+	public ComicPrice getComicPriceById(@PathVariable(value = "id") Long comicPriceId) throws ComicPriceNotFoundException {
+		Optional<ComicPrice> comicPrice = comicservice.findComicPriceById(comicPriceId);
+		
+		try {
+			comicPrice.get().getId();
+		}
+		catch(Exception e) {
+			throw new ComicPriceNotFoundException("Comic no puesto a la venta");
+		}
+		
+		ComicPrice cp = comicPrice.get();
+		
+		User u1 = cp.getUser();
+		Comic c1 = cp.getComic();
+		User u2 = new User();
+		Comic c2 = new Comic();
+		
+		c2.setTitle(c1.getTitle());
+		c2.setPublisher(c1.getPublisher());
+		c2.setVolume(c1.getVolume());
+		c2.setIssue(c1.getIssue());	
+		c2.setComicId(c1.getComicId());
+		
+		u2.setUsername(u1.getUsername());
+		u2.setUserId(u1.getUserId());
+		
+		cp.setUser(u2);
+		cp.setComic(c2);
+		
+		return cp;
+	}
+	
+	@GetMapping("/comic/forsale/{username}")
+	public List<Comic> getForSaleByUser(@PathVariable(value = "username") String username) throws UserNotFoundException {
+		Optional<User> user = comicservice.findUserByName(username);
+		
+		try {
+			user.get().getUserId();
+		}
+		catch(Exception e) {
+			throw new UserNotFoundException("Usuario no encontrado");
+		}
+			
+		User u = user.get();
+		
+		List<ComicPrice> comics = u.getForSale_comics();
+		List<Comic> comics2 = new ArrayList<Comic>();
+		
+		for (ComicPrice cp : comics) {			
+			User u1 = cp.getUser();
+			Comic c1 = cp.getComic();
+			User u2 = new User();
+			Comic c2 = new Comic();
+			
+			c2.setTitle(c1.getTitle());
+			c2.setPublisher(c1.getPublisher());
+			c2.setVolume(c1.getVolume());
+			c2.setIssue(c1.getIssue());	
+			c2.setComicId(c1.getComicId());
+			
+			u2.setUsername(u1.getUsername());
+			u2.setUserId(u1.getUserId());
+			
+			cp.setUser(u2);
+			cp.setComic(c2);
+			
+			comics2.add(cp.getComic());
+		}
+		
+		return comics2;
+
 	}
 	
 	@PostMapping("/comic/delete")
@@ -347,7 +824,7 @@ public class ComicVineController {
 	
 	@PostMapping("/comic/addToList")
 	public Long addComicToList(Long comic_id, Long user_id, float price, int n) throws UserNotFoundException, ComicNotFoundException {	
-		Comic comic = getComicById(comic_id);
+		Comic comic = getComicById2(comic_id);
 		User user = getUserById(user_id);
 		int c1 = 0, c2 = 0;
 		
@@ -383,7 +860,7 @@ public class ComicVineController {
 	
 	@PostMapping("/comic/removeFromList")
 	public void removeComicFromList(Long comic_id, Long user_id, float price, int n) throws UserNotFoundException, ComicNotFoundException {	
-		Comic comic = getComicById(comic_id);
+		Comic comic = getComicById2(comic_id);
 		User user = getUserById(user_id);
 				
 		if (n == 1) {
@@ -426,7 +903,7 @@ public class ComicVineController {
 	    
 	    if (b) {
 	    	Long buyerId = transaction.getBuyer().getUserId();
-	    	Long sellerId = comicPriceList.get(0).getUser().getUserId();
+	    	Long sellerId = transaction.getSeller().getUserId();
 	    	
 			User buyer = comicservice.findUserById(buyerId).get();
 			User seller = comicservice.findUserById(sellerId).get();
@@ -480,16 +957,18 @@ public class ComicVineController {
         org.springframework.social.facebook.api.User user = facebook.fetchObject("me", org.springframework.social.facebook.api.User.class, fields);
         String name = user.getName();
         String email = user.getEmail();
+        String password = user.getId();
         
         Optional<User> user1 = comicservice.findUserByEmail(user.getEmail());
         
         if (!user1.isEmpty()) {
-			throw new UserImputDataException("Error: Email ya existente.");
+        	return user1.get().getUserId();
 		}
         
         com.app.ComicFriends.entities.User userDB = new com.app.ComicFriends.entities.User();
         userDB.setName(name);
         userDB.setEmail(email);
+        userDB.setPassword(password);
         
         return comicservice.insert(userDB); 
     }  
